@@ -1,5 +1,22 @@
 # FastAPI API with users, search history and info on programming books by amazon reviews etc
 
+launch app
+
+launch app
+```
+python -m uvicorn main:app --reload
+```
+
+docs on BASE_URL/docs
+
+
+migrate model changes
+
+1. make changes
+2. `alembic revision --autogenerate -m "message"`
+3.  alembic upgrade head
+
+
 Currently planned models:
 
 User
