@@ -19,12 +19,6 @@ DATABASE_URL = f"postgresql://{config('DB_USER')}:{config('DB_PASSWORD')}@localh
 database = databases.Database(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 
-
-class PermissionEnum(Enum):
-    super_admin = "super admin"
-    admin = "admin"
-    basic = "basic"
-
 # test tables
 users = sqlalchemy.Table(
     "users",
@@ -33,38 +27,25 @@ users = sqlalchemy.Table(
     sqlalchemy.Column("username", sqlalchemy.String),
     sqlalchemy.Column("password", sqlalchemy.String),
     sqlalchemy.Column("email", sqlalchemy.String),
-    # sqlalchemy.Column("test_field", sqlalchemy.Integer)
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, server_default=sqlalchemy.func.now(), nullable=True),
-    sqlalchemy.Column("permission", sqlalchemy.Enum(PermissionEnum), nullable=False, server_default=PermissionEnum.basic.name)
 )
 
-# one to many relationship example - one user, many posts
-posts = sqlalchemy.Table(
-    "posts",
+books = sqlalchemy.Table(
+    "books",
     metadata,
+    sqlalchemy.Column("title", sqlalchemy.VARCHAR(250), server_default="untitled"),
+    sqlalchemy.Column("description", sqlalchemy.TEXT),
+    sqlalchemy.Column("author", sqlalchemy.VARCHAR(100)),
+    sqlalchemy.Column("isbn10", sqlalchemy.VARCHAR(10)),
+    sqlalchemy.Column("isbn13", sqlalchemy.VARCHAR(16)),
+    sqlalchemy.Column("publish_date", sqlalchemy.DATE),
+    sqlalchemy.Column("edition", sqlalchemy.INTEGER, server_default="0"),
+    sqlalchemy.Column("best_seller", sqlalchemy.BOOLEAN, server_default="no"),
+    sqlalchemy.Column("top_rated", sqlalchemy.BOOLEAN, server_default="no"),
+    sqlalchemy.Column("rating", sqlalchemy.Numeric(precision=2, scale=1), server_default="0"),
+    sqlalchemy.Column("review_count", sqlalchemy.INTEGER, server_default="0"),
+    sqlalchemy.Column("price", sqlalchemy.Numeric(precision=5, scale=2), server_default="99"),
     sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
-    sqlalchemy.Column("title", sqlalchemy.String),
-    sqlalchemy.Column("content", sqlalchemy.String),
-    sqlalchemy.Column("user_id", sqlalchemy.ForeignKey("users.id"), nullable=False)
-)
-
-# many to many example
-groups = sqlalchemy.Table(
-    "groups",
-    metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
-    sqlalchemy.Column("name", sqlalchemy.String),
-    # sqlalchemy.Column("user_id", sqlalchemy.ForeignKey("users.id"), nullable=False)
-    # sqlalchemy.Column("permission", ENUM(PermissionEnum), nullable=False)
-    # sqlalchemy.Column("permission", sqlalchemy.Enum(PermissionEnum), nullable=False)
-)
-
-groups_users = sqlalchemy.Table(
-    "groups_users",
-    metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
-    sqlalchemy.Column("user_id", sqlalchemy.ForeignKey("users.id"), nullable=False),
-    sqlalchemy.Column("group_id", sqlalchemy.ForeignKey("groups.id"), nullable=False)
 )
 
 # ============= without alembic migrations ==============
@@ -76,22 +57,8 @@ groups_users = sqlalchemy.Table(
 # in terminal: alembic revision --autogenerate -m "message"
 # -> alembic upgrade head
 
-# class EmailField(str):
-#     @classmethod
-#     def __get_validators__(cls):
-#         yield cls.validate
-
-#     @classmethod
-#     def validate(cls, v) -> str:
-#         try:
-#             validate_email(v)
-#             return v
-#         except EmailNotValidError:
-#             raise ValueError("Invalid email format")
-
 class BaseUser(BaseModel):
     username: str
-    # email: EmailField
     email: str
 
     @field_validator("email")
@@ -107,7 +74,6 @@ class BaseUser(BaseModel):
 # sign up schema, extends base user schema
 class UserSignIn(BaseUser):
     password: str
-    permission: PermissionEnum = None
     # created_at: datetime
 
 # just for display purposes
@@ -119,6 +85,22 @@ class BasePost(BaseModel):
     title: str
     content: str
     user_id: int
+
+
+class BaseBook(BaseModel):
+    id: int
+    title: str
+    description: str | None = None
+    author: str | None = None
+    isbn10: str | None = None
+    isbn13: str | None = None
+    publish_date: datetime | None = None
+    edition: int | None = None
+    best_seller: bool | None = None
+    top_rated: bool | None = None
+    rating: float | None = None
+    review_count: int | None = None
+    price: float | None = None
 
 # start app
 app = FastAPI()
@@ -145,14 +127,6 @@ class CustomHTTPBearer(HTTPBearer):
 # obiekt do obslugi customowej definicji zachowania sprawdzania bearera itd
 oauth2_scheme = CustomHTTPBearer()
 
-def is_admin(request: Request):
-    user = request.state.user
-    # if user and user["permission"] == "admin"
-    if not user or user["permission"] not in (PermissionEnum.admin, PermissionEnum.super_admin):
-        raise HTTPException(401, "permission level too low for these resources")
-
-
-
 def create_access_token(user):
     try:
         payload = {"sub": user.id, "exp": datetime.utcnow() + timedelta(minutes=120)}
@@ -174,18 +148,6 @@ async def get_all_users():
     query = users.select()
     return await database.fetch_all(query)
 
-# @app.post("/users/")
-# async def create_user(request: Request):
-#     data = await request.json()
-#     # query = users.insert().values(**data)
-#     # query = users.insert().values(username="test_user", password="password",
-#     #                                email="test@test.com")
-#     query = users.insert().values(username=data["username"],
-#                                    password=data["password"],
-#                                    email=data["email"])
-#     last_record_id = await database.execute(query)
-#     return {"id": last_record_id}
-
 # @app.post("/register/", response_model=UserSignOut)
 @app.post("/register/")
 async def create_user(user: UserSignIn):
@@ -196,17 +158,12 @@ async def create_user(user: UserSignIn):
     token = create_access_token(created_user)
     return {"token": token}
 
-
-@app.post("/posts/", dependencies=[Depends(oauth2_scheme),
-                                    Depends(is_admin)],
-                     status_code = 201)
-async def create_post(data: BasePost):
-    # data = await request.json()
-    query = posts.insert().values(**data.model_dump())
-    id = await database.execute(query)
-    return await database.fetch_one(posts.select().where(posts.c.id==id))
+@app.get("/books/")
+async def get_5_books():
+    query = books.select().limit(5)
+    return await database.fetch_all(query)
 
 # z tokenem
-@app.get("/posts/", dependencies=[Depends(oauth2_scheme)])
-async def get_all_posts():
-    return await database.fetch_all(posts.select())
+# @app.get("/posts/", dependencies=[Depends(oauth2_scheme)])
+# async def get_all_posts():
+#     return await database.fetch_all(posts.select())
