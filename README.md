@@ -1,5 +1,42 @@
 # FastAPI API with users, search history and info on programming books by amazon reviews etc
 
+Important endpoints:
+
+* /books/ - get books from dataset with filtering by query params, eg.
+
+curl -X 'GET' \
+  'http://127.0.0.1:8000/books/?title=handbook&desc=%something&ordering=publish_date' \
+  -H 'accept: application/json'
+
+
+* /users/ - get all users
+
+* /register/ - register new user, returns a token value
+
+* /login/ - login with email and password, returns a token value
+
+* /books/{book_id}/favourite - add book specified by book id to user-tied favourite books
+
+will only work if authorized
+
+how to authorize? with an Authorization header:
+
+eg.
+curl -X 'POST' \
+  'http://127.0.0.1:8000/books/1350/favourite' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjE1LCJleHAiOjE2OTc2NTc2Nzh9.i0KgghLZnhWiIt5DzROxbTF42Qh9QiSSjdNqzgmS_90' \
+  -d ''
+
+with a postgres database
+
+Current models:
+
+User
+Book
+History
+Favourites
+
 launch app
 
 launch app
@@ -14,15 +51,8 @@ migrate model changes
 
 1. make changes
 2. `alembic revision --autogenerate -m "message"`
-3.  alembic upgrade head
+3.  `alembic upgrade head`
 
-
-Currently planned models:
-
-User
-Book
-History
-Favourites
 
 postgresql db on localhost:5432
 
@@ -31,6 +61,12 @@ db: ksiazki
 server/user: postgres
 
 password: postgres
+
+
+===================
+
+
+more info on extending the documentation: https://fastapi.tiangolo.com/tutorial/metadata/
 
 
 ====================

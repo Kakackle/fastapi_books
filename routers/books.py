@@ -1,6 +1,7 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
+from sqlalchemy import desc as descending
 
 from resources.schemas import BaseUser, BaseFav, BaseHistory
 from .users import get_current_user
@@ -18,11 +19,12 @@ async def get_books_head():
     query = books.select().limit(5)
     return await database.fetch_all(query)
 
-@router.get("/books/")
+@router.get("/books/", description="Get books with filtering and ordering through query params, without saving to user's history of searches")
 async def get_books(title: str = "%", desc: str = "%",
                     author: str = "%", rating_gte: float = 0.0,
                     review_count_gte: int = 0, price_gte: float = 0.0,
-                    price_lte: float = 999.99, edition_gte: int = 1):
+                    price_lte: float = 999.99, edition_gte: int = 1,
+                    ordering: str = Query("publish_date", enum=["publish_date", "rating", "review_count", "price", "title"])):
     query = books.select().where(
         (books.c.title.ilike(f"%{title}%")) &
         (books.c.description.ilike(f"%{desc}%")) &
@@ -32,12 +34,13 @@ async def get_books(title: str = "%", desc: str = "%",
         (books.c.price >= price_gte) &
         (books.c.price <= price_lte) &
         (books.c.edition >= edition_gte)
-        )
+        ).order_by(descending(ordering))
     # print("query: ", str(query))
     return await database.fetch_all(query)
 
 # books retrieve endpoint with history saving
-@router.get("/books/save")
+@router.get("/books/save", description="Get books with filtering and ordering through query params, WITH saving to user's history of searches",
+            tags=["books", "history"])
 async def get_books_save(
                     current_user:Annotated[BaseUser, Depends(get_current_user)],
                     title: str = "%", desc: str = "%",
@@ -77,7 +80,8 @@ async def get_book(book_id:int):
     query = books.select().where(books.c.id == book_id)
     return await database.fetch_one(query)
 
-@router.post("/books/{book_id}/favourite")
+@router.post("/books/{book_id}/favourite", description="add book to user's favourites",
+             tags=["books", "favourites"])
 async def add_to_favourites(book_id:int, current_user:Annotated[BaseUser, Depends(get_current_user)]):
     user_id = current_user.id
     fav_data = BaseFav(user_id=user_id, book_id=book_id, date_added=datetime.now())
@@ -89,20 +93,20 @@ async def add_to_favourites(book_id:int, current_user:Annotated[BaseUser, Depend
     created_fav = await database.fetch_one(favourites.select().where(favourites.c.id == fav_id))
     return {created_fav}
     
-@router.get("/favourites/")
+@router.get("/favourites/", tags=["favourites"])
 async def get_favourites(current_user: Annotated[BaseUser, Depends(get_current_user)]):
     query = favourites.select().where(favourites.c.user_id == current_user.id)
     favs = await database.fetch_all(query)
     return favs
 
-@router.get("/favourites/{user_id}")
+@router.get("/favourites/{user_id}", tags=["favourites"])
 async def get_user_favourites(user_id:int):
     query = favourites.select().where(favourites.c.user_id == user_id)
     favs = await database.fetch_all(query)
     return favs
 
 
-@router.get("/history/")
+@router.get("/history/", tags=["history"])
 async def get_history(current_user: Annotated[BaseUser, Depends(get_current_user)]):
     query = history.select().where(history.c.user_id == current_user.id)
     history_data = await database.fetch_all(query)

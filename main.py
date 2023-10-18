@@ -30,8 +30,60 @@ metadata = metadata
 # -> alembic upgrade head
 
 
+# extra app documentation
+description = """
+*CS Books API*
+An interactive API implementation of the "Amazon Books details for computer science" dataset
+to be found at: https://www.kaggle.com/datasets/uzair01/amazon-books/
+
+Essentially a dataset of recent books on differenct CS subjects with info on average rating, whether it achieved bestseller status, a short description etc
+
+* with some data cleaning done
+* an authenticated user system
+* a save to favourites system
+* a search history for logged users system
+
+using oauth2 with jwt token authentication of type "bearer"
+"""
+summary="CS Books API summary"
+version = "0.1.5"
+
+tags_metadata = [
+    {
+        "name": "user",
+        "description": "Operations relating to users, auth included"
+    },
+    {
+        "name": "books",
+        "description": "Operations relating to books"
+    },
+    {
+        "name": "favourites",
+        "description": "Operations relating to the favourites system"
+    },
+    {
+        "name": "history",
+        "description": "Operations relating to the history system"
+    },
+]
+
 # start app
-app = FastAPI()
+app = FastAPI(
+    title = "CS Books API",
+    description=description,
+    summary=summary,
+    version=version,
+    terms_of_service="http://example.com/terms/",
+    contact={
+        "name": "Kakackle",
+        "url": "https://github.com/Kakackle"
+    },
+    license_info={
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+    },
+    openapi_tags=tags_metadata,
+)
 app.include_router(user_router)
 app.include_router(book_router)
 
